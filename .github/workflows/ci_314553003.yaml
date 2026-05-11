@@ -1,0 +1,77 @@
+name: ci_314553003
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+
+permissions:
+  contents: read
+  checks: write
+
+concurrency:
+  group: ci-314553003-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: Typecheck, Format, and Test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ['22', '24']
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript typecheck
+        run: npx tsc --noEmit
+
+      - name: Prettier check
+        run: >
+          npx prettier --check
+          src
+          test
+          .github
+          package.json
+          package-lock.json
+          tsconfig.json
+          vitest.config.ts
+          .eslintrc.cjs
+          .prettierrc
+          docker-compose.yml
+          README.md
+
+      - name: Run tests and generate JUnit report
+        run: |
+          mkdir -p test-results
+          npx vitest run \
+          --reporter=default \
+          --reporter=junit \
+          --outputFile.junit=test-results/vitest-junit-node-${{ matrix.node-version }}.xml
+
+      - name: Publish test results to Github Actions
+        if: always() && hashFiles('test-results/*.xml') != ''
+        uses: dorny/test-reporter@v1
+        with:
+          name: Vitest Test Report Node.js ${{ matrix.node-version }}
+          path: test-results/*.xml
+          reporter: java-junit
+
+      - name: Upload test result artifact
+        if: always() && hashFiles('test-results/*.xml') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: vitest-junit-report-node-${{ matrix.node-version }}
+          path: test-results/*.xml
