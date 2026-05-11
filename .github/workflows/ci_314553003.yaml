@@ -65,8 +65,8 @@ jobs:
         if: always() && hashFiles('test-results/*.xml') != ''
         uses: dorny/test-reporter@v1
         with:
-          name: Vitest Test Report Node.js ${{ matrix.node-version }}
-          path: test-results/*.xml
+            name: Vitest Test Report Node.js ${{ matrix.node-version }}
+            path: test-results/*.xml
           reporter: java-junit
 
       - name: Upload test result artifact
