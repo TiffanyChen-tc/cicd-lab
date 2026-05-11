@@ -16,12 +16,13 @@ concurrency:
 
 jobs:
   ci:
-    name: Typecheck, Format, and Test
+    name: Node.js ${{ matrix.node-version }} | Typecheck + Prettier + Vitest
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        node-version: ['22', '24']
+        node-version: ['22',    '24']
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -36,9 +37,11 @@ jobs:
         run: npm ci
 
       - name: TypeScript typecheck
+        id: typecheck
         run: npx tsc --noEmit
 
       - name: Prettier check
+        id: prettier
         run: >
           npx prettier --check
           src
@@ -54,18 +57,19 @@ jobs:
           README.md
 
       - name: Run tests and generate JUnit report
+        id: test
         run: |
           mkdir -p test-results
           npx vitest run \
-          --reporter=default \
-          --reporter=junit \
-          --outputFile.junit=test-results/vitest-junit-node-${{ matrix.node-version }}.xml
+            --reporter=default \
+            --reporter=junit \
+            --outputFile.junit=test-results/vitest-junit-node-${{ matrix.node-version }}.xml
 
-      - name: Publish test results to Github Actions
+      - name: Publish test results to GitHub Actions
         if: always() && hashFiles('test-results/*.xml') != ''
-        uses: dorny/test-reporter@v1
+        uses: dorny/test-reporter@v3
         with:
-          name: Vitest Test Report Node.js ${{ matrix.node-version }}
+          name: Vitest Test Report - Node.js ${{ matrix.node-version }}
           path: test-results/*.xml
           reporter: java-junit
 
@@ -75,3 +79,16 @@ jobs:
         with:
           name: vitest-junit-report-node-${{ matrix.node-version }}
           path: test-results/*.xml
+
+      - name: Add CI summary
+        if: always()
+        run: |
+          echo "## CI Summary - Node.js ${{ matrix.node-version }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Check | Purpose | Result |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| TypeScript typecheck | Check TypeScript type errors | ${{ steps.typecheck.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Prettier check | Check code and config formatting | ${{ steps.prettier.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Vitest unit test | Run Fastify API unit tests | ${{ steps.test.outcome }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "JUnit report: \`test-results/vitest-junit-node-${{ matrix.node-version }}.xml\`" >> "$GITHUB_STEP_SUMMARY"
